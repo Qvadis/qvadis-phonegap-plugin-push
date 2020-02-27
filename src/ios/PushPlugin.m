@@ -26,7 +26,6 @@
 //  See GGLInstanceID.h
 #define GMP_NO_MODULES true
 
-#import <Cordova/CDV.h>
 #import <CallKit/CallKit.h>
 #import "PushPlugin.h"
 #import "AppDelegate+notification.h"
