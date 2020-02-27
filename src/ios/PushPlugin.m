@@ -27,12 +27,16 @@
 #define GMP_NO_MODULES true
 
 #import "PushPlugin.h"
+#import <CallKit/CallKit.h>
 #import "AppDelegate+notification.h"
 @import FirebaseInstanceID;
 @import FirebaseMessaging;
 @import FirebaseAnalytics;
 
 @implementation PushPlugin : CDVPlugin
+
+@property (nonatomic, strong) CXProvider *provider;
+@property (nonatomic, strong) CXCallController *callController;
 
 @synthesize notificationMessage;
 @synthesize isInline;
@@ -165,6 +169,22 @@
     if (([voipArg isKindOfClass:[NSString class]] && [voipArg isEqualToString:@"true"]) || [voipArg boolValue]) {
         [self.commandDelegate runInBackground:^ {
             NSLog(@"Push Plugin VoIP set to true");
+
+            CXProviderConfiguration *providerConfiguration;
+            providerConfiguration = [[CXProviderConfiguration alloc] initWithLocalizedName:@"Qvadis"];
+            providerConfiguration.maximumCallGroups = 1;
+            providerConfiguration.maximumCallsPerCallGroup = 1;
+            NSMutableSet *handleTypes = [[NSMutableSet alloc] init];
+            [handleTypes addObject:@(CXHandleTypePhoneNumber)];
+            providerConfiguration.supportedHandleTypes = handleTypes;
+            providerConfiguration.supportsVideo = YES;
+            if (@available(iOS 11.0, *)) {
+                providerConfiguration.includesCallsInRecents = NO;
+            }
+            self.provider = [[CXProvider alloc] initWithConfiguration:providerConfiguration];
+            [self.provider setDelegate:self queue:nil];
+            self.callController = [[CXCallController alloc] init];
+
 
             self.callbackId = command.callbackId;
 
@@ -639,11 +659,35 @@
     [self registerWithToken:sToken];
 }
 
-- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type
+- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type withCompletionHandler:(void (^)(void))completion
 {
     NSLog(@"VoIP Notification received");
     self.notificationMessage = payload.dictionaryPayload;
-    [self notificationReceived];
+
+    NSString* callName = payload.dictionaryPayload[@"UUID"];
+    NSUUID *callUUID = [[NSUUID alloc] init];
+
+    CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:@"Test"];
+    CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
+    callUpdate.remoteHandle = handle;
+    callUpdate.hasVideo = NO;
+    callUpdate.localizedCallerName = callName;
+    callUpdate.supportsGrouping = NO;
+    callUpdate.supportsUngrouping = NO;
+    callUpdate.supportsHolding = NO;
+    callUpdate.supportsDTMF = YES;
+
+    [self.provider reportNewIncomingCallWithUUID:callUUID update:callUpdate completion:^(NSError * _Nullable error) {
+        if(error == nil) {
+            NSLog(@"VoIP Notification Call dispatched");
+            [self completion];
+            // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Incoming call successful"] callbackId:command.callbackId];
+        } else {
+            NSLog(@"VoIP Notification Call error");
+            // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[error localizedDescription]] callbackId:command.callbackId];
+        }
+    }];
+    
 }
 
 - (void)handleNotificationSettings:(NSNotification *)notification
