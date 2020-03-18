@@ -681,6 +681,12 @@
         if(error == nil) {
             NSLog(@"VoIP Notification Call dispatched");
             [self notificationReceived];
+			CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:msgArray[3]];
+			CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
+
+			[self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
+				NSLog(@"VoIP Notification Call ended");
+        }];
             // [self completion];
             // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Incoming call successful"] callbackId:command.callbackId];
         } else {
@@ -688,17 +694,6 @@
             // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[error localizedDescription]] callbackId:command.callbackId];
         }
     }];
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:msgArray[3]];
-        CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
-
-        [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-            NSLog(@"VoIP Notification Call ended");
-        }];
-    });
-
-    return;
 }
 
 - (void)handleNotificationSettings:(NSNotification *)notification
