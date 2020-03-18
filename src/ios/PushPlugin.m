@@ -642,12 +642,16 @@
 
 - (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type withCompletionHandler:(void (^)(void))completion
 {
-    NSLog(@"VoIP Notification received 2");
+    NSLog(@"VoIP Notification received");
     self.notificationMessage = payload.dictionaryPayload;
+    [self notificationReceived];
 
-    NSString* callName = payload.dictionaryPayload[@"UUID"];
+    NSString* msg = payload.dictionaryPayload[@"msg"];
     NSUUID *callUUID = [[NSUUID alloc] init];
+    
+    NSArray *msgArray = [msg componentsSeparatedByString:@"::"];
 
+    // Init callkit
     CXProviderConfiguration *providerConfiguration;
     providerConfiguration = [[CXProviderConfiguration alloc] initWithLocalizedName:@"Qvadis"];
     providerConfiguration.maximumCallGroups = 1;
@@ -655,9 +659,9 @@
     NSMutableSet *handleTypes = [[NSMutableSet alloc] init];
     [handleTypes addObject:@(CXHandleTypePhoneNumber)];
     providerConfiguration.supportedHandleTypes = handleTypes;
-    providerConfiguration.supportsVideo = YES;
+    providerConfiguration.supportsVideo = NO;
     if (@available(iOS 11.0, *)) {
-        providerConfiguration.includesCallsInRecents = NO;
+        providerConfiguration.includesCallsInRecents = YES;
     }
     CXProvider *provider;
     provider = [[CXProvider alloc] initWithConfiguration:providerConfiguration];
@@ -667,7 +671,7 @@
     CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
     callUpdate.remoteHandle = handle;
     callUpdate.hasVideo = NO;
-    callUpdate.localizedCallerName = callName;
+    callUpdate.localizedCallerName = msgArray[3];
     callUpdate.supportsGrouping = NO;
     callUpdate.supportsUngrouping = NO;
     callUpdate.supportsHolding = NO;
@@ -676,14 +680,25 @@
     [provider reportNewIncomingCallWithUUID:callUUID update:callUpdate completion:^(NSError * _Nullable error) {
         if(error == nil) {
             NSLog(@"VoIP Notification Call dispatched");
+            [self notificationReceived];
             // [self completion];
-            //[self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Incoming call successful"] callbackId:command.callbackId];
+            // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Incoming call successful"] callbackId:command.callbackId];
         } else {
             NSLog(@"VoIP Notification Call error");
-            //[self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[error localizedDescription]] callbackId:command.callbackId];
+            // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[error localizedDescription]] callbackId:command.callbackId];
         }
     }];
-    
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:msgArray[3]];
+        CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
+
+        [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
+            NSLog(@"VoIP Notification Call ended");
+        }];
+    });
+
+    return;
 }
 
 - (void)handleNotificationSettings:(NSNotification *)notification
