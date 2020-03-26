@@ -654,6 +654,10 @@
     // Init callkit
     CXProviderConfiguration *providerConfiguration;
     providerConfiguration = [[CXProviderConfiguration alloc] initWithLocalizedName:@"Qvadis"];
+    
+    CXCallController *callController;
+    callController = [[CXCallController alloc] init];
+    
     providerConfiguration.maximumCallGroups = 1;
     providerConfiguration.maximumCallsPerCallGroup = 1;
     NSMutableSet *handleTypes = [[NSMutableSet alloc] init];
@@ -681,11 +685,18 @@
         if(error == nil) {
             NSLog(@"VoIP Notification Call dispatched");
             [self notificationReceived];
+
+//          [provider invalidate];
+       
 			CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:msgArray[3]];
 			CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
-
-			[self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-				NSLog(@"VoIP Notification Call ended");
+            [callController requestTransaction:transaction completion:^(NSError * _Nullable error) {
+                if (error == nil) {
+                    NSLog(@"VoIP Notification Call ended OK");
+                } else {
+                    NSLog(@"VoIP Notification Call ended ERROR: %@",[error localizedDescription]);
+                }
+            }];
         }];
             // [self completion];
             // [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Incoming call successful"] callbackId:command.callbackId];
